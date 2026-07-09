@@ -1,0 +1,29 @@
+@media print {
+  /* Header buttons hide karo */
+  button { display: none !important; }
+  
+  /* Select dropdown hide karo */
+  select { display: none !important; }
+  
+  /* Search bar hide karo */
+  input { display: none !important; }
+
+  /* Background colors print mein dikhein */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Page break table se pehle */
+  table { page-break-before: auto; }
+
+  /* Title add karo print mein */
+  body::before {
+    content: "Roquette SAP Inventory Report";
+    display: block;
+    font-size: 20px;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+}
