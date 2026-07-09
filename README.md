@@ -88,7 +88,6 @@ npm install
 npm start
 ```
 
-## 📁 Project Structure
 
 ## 👩‍💻 Developer
 **Monika Kumari**  
