@@ -1,0 +1,22 @@
+# Environment — IMPORTANT
+.env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+env/
+
+# Database
+*.db
+*.sqlite3
+
+# Data (Private)
+data/sap_inventory.csv
+
+# Test files
+test_gemini.py
+test_api.py
