@@ -2,9 +2,6 @@
 
 > Built during internship at Roquette India Pvt. Ltd., Rudrapur
 
-## 🚀 Live Demo
-[Add link after deployment]
-
 ## 📋 Overview
 InvenIQ is a full-stack inventory management system that integrates 
 with SAP-structured data to provide real-time analytics, ML-based 
@@ -88,7 +85,6 @@ npm install
 npm start
 ```
 
-## 📁 Project Structure
 
 ## 👩‍💻 Developer
 **Monika Kumari**  
