@@ -3,10 +3,11 @@ from flask_cors import CORS
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import LinearRegression
-# app.py ke top mein add karo — imports ke saath
 import sqlite3
 import json
+import os
 from datetime import datetime
+from dotenv import load_dotenv
 
 def init_db():
     conn = sqlite3.connect('orders.db')
@@ -755,29 +756,26 @@ def admin_action(req_id):
 @app.route('/api/chat', methods=['POST'])
 def chat():
     try:
-        import google.generativeai as genai
-        
+        from groq import Groq
+
         data = request.json
         user_message = data.get('message', '')
         chat_history = data.get('history', [])
-        
-        # API key configure karo
-        api_key = os.getenv('GEMINI_API_KEY')
+
+        api_key = os.getenv('GROQ_API_KEY')
         if not api_key:
             return jsonify({
                 "success": False,
-                "response": "GEMINI_API_KEY not found in .env file"
+                "response": "GROQ_API_KEY not found in .env file"
             }), 500
-            
-        genai.configure(api_key=api_key)
-        
-        # Current inventory context
+
+        # Inventory context
         low_stock = df[df['Low_Stock'] == True]
         total_value = int((df['Stock_Qty'] * df['Unit_Price_INR']).sum())
         health_score = round(((len(df) - len(low_stock)) / len(df)) * 100, 1)
         plant_summary = df.groupby('Plant')['Material_ID'].count().to_dict()
-        low_stock_list = low_stock[['Material_ID', 'Description', 
-                                     'Stock_Qty', 'Min_Stock_Level', 
+        low_stock_list = low_stock[['Material_ID', 'Description',
+                                     'Stock_Qty', 'Min_Stock_Level',
                                      'Plant', 'Supplier']].to_dict('records')
 
         system_prompt = f"""You are InvenIQ, an intelligent inventory assistant for Roquette India Pvt. Ltd., Rudrapur Plant.
@@ -798,46 +796,42 @@ LOW STOCK MATERIALS ({len(low_stock)} items):
 {chr(10).join([f"- {item['Description']} ({item['Material_ID']}): Stock={item['Stock_Qty']}, Min={item['Min_Stock_Level']}, Plant={item['Plant']}, Supplier={item['Supplier']}" for item in low_stock_list[:15]])}
 
 RULES:
-1. Your DEFAULT reply language is ENGLISH. Always reply in English unless rule 2 applies.
-2. Reply in Hindi ONLY if the user explicitly asks for it — e.g. they write "hindi mein batao", 
-   "reply in hindi", "hindi me jawab do", or similar clear requests for Hindi.
-   Do NOT switch to Hindi just because the user typed a message in Hindi/Hinglish — 
-   only switch when they explicitly request the Hindi language.
-3. Once the user asks for Hindi, keep replying in Hindi for the rest of that conversation 
-   unless they ask to switch back to English.
-4. Be concise and helpful
-5. Use Indian number format (lakhs, crores)
-6. Give actionable recommendations
-7. Keep responses short and clear
-8. You can do calculations based on the data"""
+1. Answer in same language as user (Hindi or English)
+2. Be concise and helpful
+3. Use Indian number format (lakhs, crores)
+4. Give actionable recommendations
+5. Keep responses short and clear
+6. You can do calculations based on the data"""
 
-        # Model initialize karo
-        model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
-            system_instruction=system_prompt
+        # Messages
+        messages = [{"role": "system", "content": system_prompt}]
+
+        for msg in chat_history[-6:]:
+            if msg['role'] in ['user', 'assistant']:
+                messages.append({
+                    "role": msg['role'],
+                    "content": msg['content']
+                })
+
+        messages.append({
+            "role": "user",
+            "content": user_message
+        })
+
+        # Groq API
+        client = Groq(api_key=api_key)
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=messages,
+            max_tokens=500,
+            temperature=0.7
         )
 
-        # Chat history convert karo
-        gemini_history = []
-        for msg in chat_history[-6:]:
-            if msg['role'] == 'user':
-                gemini_history.append({
-                    "role": "user",
-                    "parts": [msg['content']]
-                })
-            elif msg['role'] == 'assistant':
-                gemini_history.append({
-                    "role": "model",
-                    "parts": [msg['content']]
-                })
-
-        # Chat session
-        chat_session = model.start_chat(history=gemini_history)
-        response = chat_session.send_message(user_message)
+        ai_response = response.choices[0].message.content
 
         return jsonify({
             "success": True,
-            "response": response.text
+            "response": ai_response
         })
 
     except Exception as err:
