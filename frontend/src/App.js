@@ -1,3 +1,5 @@
+import { getToken, removeToken, api } from './utils/api';
+import API_URL from './config';
 import { useEffect, useState } from "react";
 import SummaryCards from "./components/SummaryCards";
 import InventoryTable from "./components/InventoryTable";
@@ -67,48 +69,55 @@ function App() {
   }, []);
 
   const handleRefresh = () => {
-    setRefreshing(true);
-    Promise.all([
-      fetch("http://localhost:5000/api/summary").then(r => r.json()),
-      fetch("http://localhost:5000/api/inventory").then(r => r.json()),
-      fetch(selectedMaterial === "All Materials"
-        ? "http://localhost:5000/api/predict"
-        : `http://localhost:5000/api/predict?material=${encodeURIComponent(selectedMaterial)}`
-      ).then(r => r.json())
-    ]).then(([s, inv, tr]) => {
-      setSummary(s);
-      setInventory(inv);
-      setTrend(tr);
-      setLastUpdated(new Date().toLocaleTimeString('en-IN'));
-      setRefreshing(false);
-    });
-  };
+  setRefreshing(true);
+  Promise.all([
+    api.get('/api/summary').then(r => r?.json()),
+    api.get('/api/inventory').then(r => r?.json()),
+    api.get(selectedMaterial === "All Materials"
+      ? '/api/predict'
+      : `/api/predict?material=${encodeURIComponent(selectedMaterial)}`
+    ).then(r => r?.json())
+  ]).then(([s, inv, tr]) => {
+    if (s) setSummary(s);
+    if (inv) setInventory(inv);
+    if (tr) setTrend(tr);
+    setLastUpdated(new Date().toLocaleTimeString('en-IN'));
+    setRefreshing(false);
+  });
+};
 
   useEffect(() => {
     if (!user) return;
     const interval = setInterval(handleRefresh, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [user]);
-
-  useEffect(() => {
-    if (!user) return;
-    fetch("http://localhost:5000/api/summary").then(r => r.json()).then(d => {
+// Summary + Inventory
+useEffect(() => {
+  if (!user) return;
+  api.get('/api/summary').then(r => r?.json()).then(d => {
+    if (d) {
       setSummary(d);
       setLastUpdated(new Date().toLocaleTimeString('en-IN'));
-    });
-    fetch("http://localhost:5000/api/inventory").then(r => r.json()).then(d => {
+    }
+  });
+  api.get('/api/inventory').then(r => r?.json()).then(d => {
+    if (d) {
       setInventory(d);
       setMaterials(["All Materials", ...new Set(d.map(i => i.Description))]);
-    });
-  }, [user]);
+    }
+  });
+}, [user]);
 
-  useEffect(() => {
-    if (!user) return;
-    const url = selectedMaterial === "All Materials"
-      ? "http://localhost:5000/api/predict"
-      : `http://localhost:5000/api/predict?material=${encodeURIComponent(selectedMaterial)}`;
-    fetch(url).then(r => r.json()).then(setTrend);
-  }, [selectedMaterial, user]);
+// Predict
+useEffect(() => {
+  if (!user) return;
+  const url = selectedMaterial === "All Materials"
+    ? '/api/predict'
+    : `/api/predict?material=${encodeURIComponent(selectedMaterial)}`;
+  api.get(url).then(r => r?.json()).then(d => {
+    if (d) setTrend(d);
+  });
+}, [selectedMaterial, user]);
 
   if (!user) return <Login onLogin={setUser} theme={theme} />;
 
@@ -308,42 +317,44 @@ function App() {
             </button>
 
             {/* Export Excel */}
-            {user.role !== "Viewer" && (
-              <button onClick={() => window.open('http://localhost:5000/api/export')} style={{
-                background: "#10B981", color: "white",
-                border: "none", borderRadius: "8px",
-                padding: "8px 14px", cursor: "pointer",
-                fontWeight: "600", fontSize: "0.85rem",
-                display: "flex", alignItems: "center", gap: "6px"
-              }}>
-                ↓ Excel
-              </button>
-            )}
+{user.role !== "Viewer" && (
+  <button
+    onClick={() => {
+      const token = getToken();
+      const link = document.createElement('a');
+      link.href = `${API_URL}/api/export`;
+      fetch(`${API_URL}/api/export`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(res => res.blob())
+        .then(blob => {
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'roquette_inventory_report.xlsx';
+          a.click();
+          window.URL.revokeObjectURL(url);
+        });
+    }}
+    style={{
+      background: "#10B981", color: "white",
+      border: "none", borderRadius: "8px",
+      padding: "8px 14px", cursor: "pointer",
+      fontWeight: "600", fontSize: "0.85rem",
+      display: "flex", alignItems: "center", gap: "6px"
+    }}
+  >
+    ↓ Excel
+  </button>
+)}
 
-            {/* PDF */}
-            {user.role !== "Viewer" && (
-              <PDFReport summary={summary} inventory={inventory} theme={theme} />
-            )}
-
-            {/* Print */}
-            <button onClick={() => window.print()} className="no-print" style={{
-              background: theme.inputBg, border: `1px solid ${theme.border}`,
-              borderRadius: "8px", padding: "8px 12px",
-              cursor: "pointer", color: theme.subText, fontSize: "0.85rem"
-            }}>
-              🖨️
-            </button>
-
-            {/* Alert */}
-          {/* Simulate Day — Admin Only */}
+{/* Simulate Day — Admin Only */}
 {user.role === "Admin" && (
   <button
     onClick={async () => {
-      const res = await fetch('http://localhost:5000/api/simulate-day', {
-        method: 'POST'
-      });
-      const data = await res.json();
-      if (data.success) {
+      const res = await api.post('/api/simulate-day', {});
+      const data = await res?.json();
+      if (data?.success) {
         handleRefresh();
         alert(`✅ Day simulated!\nChanges: ${data.changes} materials updated`);
       }
@@ -359,7 +370,6 @@ function App() {
     ⏭ Next Day
   </button>
 )}
-
             {/* Logout */}
             <button onClick={() => {
               setUser(null); setSummary(null);

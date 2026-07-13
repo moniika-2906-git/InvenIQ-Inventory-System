@@ -1,3 +1,4 @@
+import { api } from '../utils/api';
 import { useState, useEffect } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -11,12 +12,11 @@ function ReorderAnalysis({ theme, user }) {
   const [placingOrder, setPlacingOrder] = useState(false);
   const [notes, setNotes] = useState("");
 
-  useEffect(() => {
-    fetch("http://localhost:5000/api/reorder-analysis")
-      .then(r => r.json())
-      .then(d => { setData(d); setLoading(false); });
-  }, []);
-
+useEffect(() => {
+  api.get('/api/reorder-analysis')
+    .then(r => r?.json())
+    .then(d => { if(d) { setData(d); setLoading(false); } });
+}, []);
   const generatePO_PDF = (item, poNumber, expectedDelivery) => {
     const doc = new jsPDF();
     const today = new Date().toLocaleDateString('en-IN');
@@ -120,34 +120,30 @@ function ReorderAnalysis({ theme, user }) {
   };
 
   const placeOrder = async (item) => {
-    setPlacingOrder(true);
-    try {
-      const res = await fetch("http://localhost:5000/api/purchase-orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          material_id: item.Material_ID,
-          description: item.Description,
-          supplier: item.Supplier,
-          plant: item.Plant,
-          quantity: item.EOQ,
-          unit: item.Unit,
-          unit_price: item.Unit_Price_INR,
-          notes: notes
-        })
-      });
-      const result = await res.json();
-      if (result.success) {
-        generatePO_PDF(item, result.po_number, result.expected_delivery);
-        setOrderSuccess(result);
-        setSelectedItem(null);
-        setNotes("");
-      }
-    } catch (err) {
-      alert("Error placing order: " + err.message);
+  setPlacingOrder(true);
+  try {
+    const res = await api.post('/api/purchase-orders', {
+      material_id: item.Material_ID,
+      description: item.Description,
+      supplier: item.Supplier,
+      plant: item.Plant,
+      quantity: item.EOQ,
+      unit: item.Unit,
+      unit_price: item.Unit_Price_INR,
+      notes: notes
+    });
+    const result = await res?.json();
+    if (result?.success) {
+      generatePO_PDF(item, result.po_number, result.expected_delivery);
+      setOrderSuccess(result);
+      setSelectedItem(null);
+      setNotes("");
     }
-    setPlacingOrder(false);
-  };
+  } catch (err) {
+    alert("Error: " + err.message);
+  }
+  setPlacingOrder(false);
+};
 
   if (loading) return (
     <div style={{ background: theme.cardBg, borderRadius: "12px", padding: "40px", textAlign: "center", color: theme.text }}>

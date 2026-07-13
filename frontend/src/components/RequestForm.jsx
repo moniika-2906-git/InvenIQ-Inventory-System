@@ -1,3 +1,4 @@
+import { api } from '../utils/api';
 import { useState, useEffect } from "react";
 
 function RequestForm({ inventory, user, theme, onSuccess }) {
@@ -11,14 +12,15 @@ function RequestForm({ inventory, user, theme, onSuccess }) {
   const [myRequests, setMyRequests] = useState([]);
 
   const fetchMyRequests = () => {
-    fetch("http://localhost:5000/api/requests")
-      .then(r => r.json())
-      .then(data => {
+  api.get('/api/requests')
+    .then(r => r?.json())
+    .then(data => {
+      if(data) {
         const mine = data.filter(r => r.requested_by === user.name);
         setMyRequests(mine);
-      });
-  };
-
+      }
+    });
+};
   useEffect(() => {
     if (user.role === "Viewer") {
       fetchMyRequests();
@@ -33,50 +35,42 @@ function RequestForm({ inventory, user, theme, onSuccess }) {
     i.Material_ID.toLowerCase().includes(search.toLowerCase())
   );
 
-  const submitRequest = async () => {
-    if (!selectedMaterial || !quantity || !reason) {
-      alert("Sabhi fields fill karo!");
-      return;
+const submitRequest = async () => {
+  if (!selectedMaterial || !quantity || !reason) {
+    alert("Sabhi fields fill karo!");
+    return;
+  }
+  setLoading(true);
+  try {
+    const res = await api.post('/api/requests', {
+      material_id: selectedMaterial.Material_ID,
+      description: selectedMaterial.Description,
+      category: selectedMaterial.Category,
+      plant: selectedMaterial.Plant,
+      current_stock: selectedMaterial.Stock_Qty,
+      min_stock: selectedMaterial.Min_Stock_Level,
+      requested_quantity: parseInt(quantity),
+      unit: selectedMaterial.Unit,
+      unit_price: selectedMaterial.Unit_Price_INR,
+      reason: reason,
+      urgency: urgency,
+      requested_by: user.name,
+      requested_by_role: user.role
+    });
+    const data = await res?.json();
+    if (data?.success) {
+      fetchMyRequests();
+      onSuccess(data.request_number);
+      setSelectedMaterial(null);
+      setQuantity("");
+      setReason("");
+      setSearch("");
     }
-
-    setLoading(true);
-    try {
-      const res = await fetch("http://localhost:5000/api/requests", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          material_id: selectedMaterial.Material_ID,
-          description: selectedMaterial.Description,
-          category: selectedMaterial.Category,
-          plant: selectedMaterial.Plant,
-          current_stock: selectedMaterial.Stock_Qty,
-          min_stock: selectedMaterial.Min_Stock_Level,
-          requested_quantity: parseInt(quantity),
-          unit: selectedMaterial.Unit,
-          unit_price: selectedMaterial.Unit_Price_INR,
-          reason: reason,
-          urgency: urgency,
-          requested_by: user.name,
-          requested_by_role: user.role
-        })
-      });
-
-      const data = await res.json();
-      
-      if (data.success) {
-        fetchMyRequests();
-        onSuccess(data.request_number);
-        setSelectedMaterial(null);
-        setQuantity("");
-        setReason("");
-        setSearch("");
-      }
-    } catch (err) {
-      alert("Error: " + err.message);
-    }
-    setLoading(false);
-  };
-
+  } catch (err) {
+    alert("Error: " + err.message);
+  }
+  setLoading(false);
+};
   const urgencyConfig = {
     "Normal": { color: "#10B981", bg: "#10B98115" },
     "High": { color: "#F59E0B", bg: "#F59E0B15" },

@@ -1,3 +1,4 @@
+import { api } from '../utils/api';
 import { useState, useEffect } from "react";
 
 function OrderHistory({ theme }) {
@@ -5,32 +6,23 @@ function OrderHistory({ theme }) {
   const [loading, setLoading] = useState(true);
   const [stockAlert, setStockAlert] = useState(null);
 
-  const fetchOrders = () => {
-    fetch("http://localhost:5000/api/purchase-orders")
-      .then(r => r.json())
-      .then(d => { setOrders(d); setLoading(false); });
-  };
+ const fetchOrders = () => {
+  api.get('/api/purchase-orders')
+    .then(r => r?.json())
+    .then(d => { if(d) { setOrders(d); setLoading(false); } });
+};
 
   useEffect(() => { fetchOrders(); }, []);
 
-  const updateStatus = async (id, status, materialId) => {
-    const res = await fetch(`http://localhost:5000/api/purchase-orders/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status })
-    });
-    const result = await res.json();
-
-    if (result.stock_updated) {
-      setStockAlert({
-        material: materialId,
-        newStock: result.new_stock
-      });
-      setTimeout(() => setStockAlert(null), 4000);
-    }
-
-    fetchOrders();
-  };
+ const updateStatus = async (id, status, materialId) => {
+  const res = await api.put(`/api/purchase-orders/${id}`, { status });
+  const result = await res?.json();
+  if (result?.stock_updated) {
+    setStockAlert({ material: materialId, newStock: result.new_stock });
+    setTimeout(() => setStockAlert(null), 4000);
+  }
+  fetchOrders();
+};
 
   const statusColor = {
     "Pending": "#f4a261",

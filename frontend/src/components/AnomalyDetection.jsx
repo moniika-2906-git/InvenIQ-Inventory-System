@@ -1,16 +1,17 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
+import { api } from '../utils/api';
 
 function AnomalyDetection({ theme }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/anomalies")
-      .then(r => r.json())
+    api.get('/api/anomalies')
+      .then(r => r?.json())
       .then(d => {
-        setData(d);
-        setLoading(false);
-      });
+        if (d) { setData(d); setLoading(false); }
+      })
+      .catch(() => setLoading(false));
   }, []);
 
   if (loading) return (

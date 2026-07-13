@@ -1,3 +1,4 @@
+ import { api } from '../utils/api';
 import { useState, useRef, useEffect } from "react";
 
 function AIChatbot({ theme, inventory, summary }) {
@@ -47,16 +48,13 @@ function AIChatbot({ theme, inventory, summary }) {
         content: m.content
       }));
 
-      const res = await fetch("http://localhost:5000/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: userMsg.content,
-          history: history
-        })
-      });
 
-      const data = await res.json();
+// sendMessage function mein:
+const res = await api.post('/api/chat', {
+  message: userMsg.content,
+  history: history
+});
+const data = await res?.json();
 
       const aiMsg = {
         role: "assistant",

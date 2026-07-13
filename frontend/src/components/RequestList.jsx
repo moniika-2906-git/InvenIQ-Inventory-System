@@ -1,3 +1,4 @@
+import { api } from '../utils/api';
 import { useState, useEffect } from "react";
 
 function RequestList({ user, theme }) {
@@ -9,10 +10,10 @@ function RequestList({ user, theme }) {
   const [toast, setToast] = useState(null);
 
   const fetchRequests = () => {
-    fetch(`http://localhost:5000/api/requests`)
-      .then(r => r.json())
-      .then(d => { setRequests(d); setLoading(false); });
-  };
+  api.get('/api/requests')
+    .then(r => r?.json())
+    .then(d => { if(d) { setRequests(d); setLoading(false); } });
+};
 
   useEffect(() => { fetchRequests(); }, []);
 
@@ -22,23 +23,17 @@ function RequestList({ user, theme }) {
   };
 
   const handleManagerAction = async (reqId, action) => {
-    const res = await fetch(`http://localhost:5000/api/requests/${reqId}/manager`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action, comment,
-        manager_name: user.name
-      })
-    });
-    const result = await res.json();
-    if (result.success) {
-      showToast(`✅ Request ${action} by ${user.name}!`);
-      setActionModal(null);
-      setComment("");
-      fetchRequests();
-    }
-  };
-
+  const res = await api.put(`/api/requests/${reqId}/manager`, {
+    action, comment, manager_name: user.name
+  });
+  const result = await res?.json();
+  if (result?.success) {
+    showToast(`✅ Request ${action} by ${user.name}!`);
+    setActionModal(null);
+    setComment("");
+    fetchRequests();
+  }
+};
   const handleAdminAction = async (reqId, action) => {
     const res = await fetch(`http://localhost:5000/api/requests/${reqId}/admin`, {
       method: "PUT",
