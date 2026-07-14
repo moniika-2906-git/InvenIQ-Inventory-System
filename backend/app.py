@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request, abort, send_file
 from flask_cors import CORS
 from flask_jwt_extended import (
     JWTManager, create_access_token,
-    jwt_required, get_jwt_identity
+    jwt_required, get_jwt_identity, get_jwt
 )
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -13,6 +13,7 @@ import sqlite3
 import os
 import logging
 import bcrypt
+from functools import wraps
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
@@ -43,17 +44,56 @@ CORS(app, resources={
 # ── JWT ──
 jwt_secret = os.getenv('JWT_SECRET')
 if not jwt_secret:
-    logger.warning("JWT_SECRET not set — using dev default")
-app.config['JWT_SECRET_KEY'] = jwt_secret or 'dev-secret-only-change-in-production'
+    raise RuntimeError(
+        "JWT_SECRET environment variable is not set. "
+        "Refusing to start with an insecure default secret. "
+        "Set JWT_SECRET before running the app (e.g. generate one with: "
+        "python -c \"import secrets; print(secrets.token_hex(32))\")."
+    )
+app.config['JWT_SECRET_KEY'] = jwt_secret
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=8)
 jwt = JWTManager(app)
 
+
+# ── Role-based Access Control ──
+def require_role(*allowed_roles):
+    """Use AFTER @jwt_required() on any route that should be restricted
+    to specific roles, e.g. @require_role("Admin") or @require_role("Admin", "Manager")."""
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            claims = get_jwt()
+            if claims.get("role") not in allowed_roles:
+                logger.warning(
+                    f"Forbidden: user={get_jwt_identity()} role={claims.get('role')} "
+                    f"tried to access {request.path}"
+                )
+                return jsonify({"success": False, "error": "Forbidden — insufficient permissions"}), 403
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
 # ── Rate Limiter ──
+# Uses Redis when REDIS_URL is set (required for multi-worker/production deployments,
+# since in-memory storage is per-process and gets diluted across Gunicorn workers).
+# Falls back to in-memory storage for local single-process development only.
+redis_url = os.getenv('REDIS_URL')
+if redis_url:
+    limiter_storage_uri = redis_url
+    logger.info("Rate limiter using Redis storage (production-safe, shared across workers)")
+else:
+    limiter_storage_uri = "memory://"
+    logger.warning(
+        "REDIS_URL not set — rate limiter using in-memory storage. "
+        "This is fine for local development but NOT safe for multi-worker production "
+        "deployments (each worker gets its own counter, effectively multiplying the limits)."
+    )
+
 limiter = Limiter(
     app=app,
     key_func=get_remote_address,
     default_limits=["200 per day", "50 per hour"],
-    storage_uri="memory://"
+    storage_uri=limiter_storage_uri
 )
 
 # ── Config ──
@@ -455,6 +495,7 @@ def filter_data():
 # ─────────────────────────────────────────
 @app.route('/api/export', methods=['GET'])
 @jwt_required()
+@require_role("Admin", "Manager")
 @limiter.limit("10 per hour")
 def export_excel():
     import io
@@ -481,9 +522,11 @@ def export_excel():
 # ─────────────────────────────────────────
 @app.route('/api/send-alert', methods=['POST'])
 @jwt_required()
+@require_role("Admin")
 @limiter.limit("3 per hour")
 def send_alert():
     import smtplib
+    import html as html_lib
     from email.mime.multipart import MIMEMultipart
     from email.mime.text import MIMEText
 
@@ -492,15 +535,18 @@ def send_alert():
     if len(low_items) == 0:
         return jsonify({"message": "Koi low stock item nahi hai!"})
 
+    def esc(value):
+        return html_lib.escape(str(value))
+
     rows = ""
     for _, row in low_items.iterrows():
         rows += f"""
         <tr>
-            <td style="padding:8px;border:1px solid #ddd">{row['Material_ID']}</td>
-            <td style="padding:8px;border:1px solid #ddd">{row['Description']}</td>
-            <td style="padding:8px;border:1px solid #ddd;color:red"><b>{row['Stock_Qty']}</b></td>
-            <td style="padding:8px;border:1px solid #ddd">{row['Min_Stock_Level']}</td>
-            <td style="padding:8px;border:1px solid #ddd">{row['Plant']}</td>
+            <td style="padding:8px;border:1px solid #ddd">{esc(row['Material_ID'])}</td>
+            <td style="padding:8px;border:1px solid #ddd">{esc(row['Description'])}</td>
+            <td style="padding:8px;border:1px solid #ddd;color:red"><b>{esc(row['Stock_Qty'])}</b></td>
+            <td style="padding:8px;border:1px solid #ddd">{esc(row['Min_Stock_Level'])}</td>
+            <td style="padding:8px;border:1px solid #ddd">{esc(row['Plant'])}</td>
         </tr>
         """
 
@@ -653,6 +699,7 @@ def reorder_analysis():
 # ─────────────────────────────────────────
 @app.route('/api/purchase-orders', methods=['POST'])
 @jwt_required()
+@require_role("Admin", "Manager")
 def create_purchase_order():
     data = request.json
     if not data:
@@ -722,6 +769,7 @@ def get_purchase_orders():
 # ─────────────────────────────────────────
 @app.route('/api/purchase-orders/<int:order_id>', methods=['PUT'])
 @jwt_required()
+@require_role("Admin", "Manager")
 def update_order_status(order_id):
     data = request.json
     new_status = data.get('status', '')
@@ -777,6 +825,7 @@ def update_order_status(order_id):
 # ─────────────────────────────────────────
 @app.route('/api/simulate-day', methods=['POST'])
 @jwt_required()
+@require_role("Admin")
 @limiter.limit("10 per hour")
 def simulate_day():
     try:
@@ -885,6 +934,7 @@ def get_requests():
 # ─────────────────────────────────────────
 @app.route('/api/requests/<int:req_id>/manager', methods=['PUT'])
 @jwt_required()
+@require_role("Manager", "Admin")
 def manager_action(req_id):
     data = request.json
     action = data.get('action', '')
@@ -925,6 +975,7 @@ def manager_action(req_id):
 # ─────────────────────────────────────────
 @app.route('/api/requests/<int:req_id>/admin', methods=['PUT'])
 @jwt_required()
+@require_role("Admin")
 def admin_action(req_id):
     data = request.json
     action = data.get('action', '')
