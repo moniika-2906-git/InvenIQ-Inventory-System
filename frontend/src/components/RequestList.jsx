@@ -35,16 +35,12 @@ function RequestList({ user, theme }) {
   }
 };
   const handleAdminAction = async (reqId, action) => {
-    const res = await fetch(`http://localhost:5000/api/requests/${reqId}/admin`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action, comment,
-        admin_name: user.name
-      })
+    const res = await api.put(`/api/requests/${reqId}/admin`, {
+      action, comment,
+      admin_name: user.name
     });
-    const result = await res.json();
-    if (result.success) {
+    const result = await res?.json();
+    if (result?.success) {
       showToast(
         action === 'Approved'
           ? `✅ PO Created: ${result.po_number}!`
@@ -91,6 +87,7 @@ function RequestList({ user, theme }) {
       {toast && (
         <div style={{
           position: "fixed", top: "20px", right: "20px",
+          maxWidth: "calc(100vw - 40px)",
           background: toast.color, color: "white",
           padding: "14px 20px", borderRadius: "10px",
           boxShadow: "0 8px 24px rgba(0,0,0,0.2)",

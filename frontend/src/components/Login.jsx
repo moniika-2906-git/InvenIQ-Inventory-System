@@ -1,6 +1,7 @@
 import { useState } from "react";
 import API_URL from "../config";
 import { setToken } from "../utils/api";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 
 function Login({ onLogin }) {
   const [username, setUsername] = useState("");
@@ -9,6 +10,7 @@ function Login({ onLogin }) {
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
   const [attempts, setAttempts] = useState(0);
+  const isMobile = useMediaQuery("(max-width: 860px)");
 
   const handleLogin = async () => {
     if (!username || !password) {
@@ -52,9 +54,11 @@ function Login({ onLogin }) {
       minHeight: "100vh",
       background: "#0F172A",
       display: "flex",
+      flexDirection: isMobile ? "column" : "row",
       fontFamily: "'Inter', sans-serif"
     }}>
-      {/* Left Panel */}
+      {/* Left Panel — hidden on mobile to keep the login form front and center */}
+      {!isMobile && (
       <div style={{
         flex: 1, display: "flex", flexDirection: "column",
         justifyContent: "center", padding: "60px",
@@ -131,11 +135,13 @@ function Login({ onLogin }) {
           ))}
         </div>
       </div>
+      )}
 
       {/* Right Panel */}
       <div style={{
-        width: "480px", display: "flex", alignItems: "center",
-        justifyContent: "center", padding: "40px", background: "#FFFFFF"
+        width: isMobile ? "100%" : "480px", display: "flex", alignItems: "center",
+        justifyContent: "center", padding: isMobile ? "32px 20px" : "40px", background: "#FFFFFF",
+        minHeight: isMobile ? "100vh" : "auto"
       }}>
         <div style={{ width: "100%", maxWidth: "380px" }}>
           <h2 style={{ fontSize: "1.6rem", fontWeight: "800", color: "#0F172A", marginBottom: "8px" }}>
@@ -172,7 +178,7 @@ function Login({ onLogin }) {
               style={{
                 width: "100%", padding: "12px 16px", borderRadius: "10px",
                 border: `2px solid ${error ? "#EF4444" : "#E2E8F0"}`,
-                fontSize: "0.95rem", outline: "none",
+                fontSize: "16px", outline: "none",
                 boxSizing: "border-box", color: "#0F172A", background: "#F8FAFC"
               }}
               onFocus={e => e.target.style.border = "2px solid #6366F1"}
@@ -198,7 +204,7 @@ function Login({ onLogin }) {
                   width: "100%", padding: "12px 44px 12px 16px",
                   borderRadius: "10px",
                   border: `2px solid ${error ? "#EF4444" : "#E2E8F0"}`,
-                  fontSize: "0.95rem", outline: "none",
+                  fontSize: "16px", outline: "none",
                   boxSizing: "border-box", color: "#0F172A", background: "#F8FAFC"
                 }}
                 onFocus={e => e.target.style.border = "2px solid #6366F1"}

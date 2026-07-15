@@ -46,7 +46,7 @@ function NotificationBell({ inventory, theme }) {
       position: "fixed",
       top: "70px",
       right: "16px",
-          width: "340px", background: theme.cardBg,
+          width: "min(340px, calc(100vw - 32px))", background: theme.cardBg,
           borderRadius: "12px", boxShadow: "0 8px 30px rgba(0,0,0,0.2)",
           border: `1px solid ${theme.border}`,
           zIndex: 1000, overflow: "hidden"

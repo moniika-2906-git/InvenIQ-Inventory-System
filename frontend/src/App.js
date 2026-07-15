@@ -16,6 +16,7 @@ import OrderHistory from "./components/OrderHistory";
 import RequestForm from "./components/RequestForm";
 import RequestList from "./components/RequestList";
 import AIChatbot from "./components/AIChatbot";
+import { useBreakpoints } from "./hooks/useMediaQuery";
 // Theme System
 const getTheme = (dark) => ({
   bg: dark ? "#0F172A" : "#F8FAFC",
@@ -58,9 +59,21 @@ function App() {
   const [refreshing, setRefreshing] = useState(false);
   const [activePage, setActivePage] = useState("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [time, setTime] = useState(new Date());
+  const { isMobile, isTablet } = useBreakpoints();
 
   const theme = getTheme(darkMode);
+
+  // Auto-collapse sidebar to icon-only on tablet widths
+  useEffect(() => {
+    if (isTablet && !isMobile) setSidebarCollapsed(true);
+  }, [isTablet, isMobile]);
+
+  // Close the mobile drawer whenever a page is selected or screen grows
+  useEffect(() => {
+    if (!isMobile) setMobileMenuOpen(false);
+  }, [isMobile]);
 
   // Clock
   useEffect(() => {
@@ -130,16 +143,29 @@ useEffect(() => {
       transition: "all 0.3s ease"
     }}>
 
+      {/* ── Mobile Backdrop ── */}
+      {isMobile && mobileMenuOpen && (
+        <div
+          onClick={() => setMobileMenuOpen(false)}
+          style={{
+            position: "fixed", inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 99
+          }}
+        />
+      )}
+
       {/* ── Sidebar ── */}
       <div style={{
-        width: sidebarCollapsed ? "72px" : "240px",
+        width: isMobile ? "240px" : (sidebarCollapsed ? "72px" : "240px"),
         background: theme.sidebarBg,
         borderRight: `1px solid ${theme.border}`,
         display: "flex", flexDirection: "column",
-        transition: "width 0.3s ease",
+        transition: "width 0.3s ease, transform 0.3s ease",
         position: "fixed", top: 0, left: 0,
         height: "100vh", zIndex: 100,
-        overflow: "hidden"
+        overflow: "hidden",
+        transform: isMobile && !mobileMenuOpen ? "translateX(-100%)" : "translateX(0)"
       }}>
         {/* Logo */}
         <div style={{
@@ -156,7 +182,7 @@ useEffect(() => {
           }}>
             I
           </div>
-          {!sidebarCollapsed && (
+          {(!sidebarCollapsed || isMobile) && (
             <div>
               <div style={{ fontWeight: "700", fontSize: "1rem", color: theme.text }}>
                 InvenIQ
@@ -175,7 +201,10 @@ useEffect(() => {
             return (
               <button
                 key={item.id}
-                onClick={() => setActivePage(item.id)}
+                onClick={() => {
+                  setActivePage(item.id);
+                  if (isMobile) setMobileMenuOpen(false);
+                }}
                 style={{
                   width: "100%", display: "flex", alignItems: "center",
                   gap: "12px", padding: "10px 12px",
@@ -197,7 +226,7 @@ useEffect(() => {
                 }}
               >
                 <span style={{ fontSize: "1.1rem", flexShrink: 0 }}>{item.icon}</span>
-                {!sidebarCollapsed && (
+                {(!sidebarCollapsed || isMobile) && (
                   <span style={{ fontSize: "0.9rem", fontWeight: active ? "600" : "400" }}>
                     {item.label}
                   </span>
@@ -208,7 +237,7 @@ useEffect(() => {
         </nav>
 
         {/* User Info */}
-        {!sidebarCollapsed && (
+        {(!sidebarCollapsed || isMobile) && (
           <div style={{
             padding: "16px",
             borderTop: `1px solid ${theme.border}`,
@@ -241,26 +270,28 @@ useEffect(() => {
 
       {/* ── Main Area ── */}
       <div style={{
-        marginLeft: sidebarCollapsed ? "72px" : "240px",
+        marginLeft: isMobile ? "0" : (sidebarCollapsed ? "72px" : "240px"),
         flex: 1, transition: "margin-left 0.3s ease",
-        display: "flex", flexDirection: "column"
+        display: "flex", flexDirection: "column",
+        minWidth: 0, width: "100%"
       }}>
 
         {/* ── Topbar ── */}
         <div style={{
           background: theme.headerBg,
           borderBottom: `1px solid ${theme.border}`,
-          padding: "12px 24px",
+          padding: "12px clamp(12px, 4vw, 24px)",
           display: "flex", justifyContent: "space-between",
           alignItems: "center", gap: "12px",
           position: "sticky", top: 0, zIndex: 50,
-          backdropFilter: "blur(10px)"
+          backdropFilter: "blur(10px)",
+          flexWrap: "wrap"
         }}>
           {/* Left */}
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            {/* Collapse button */}
+            {/* Collapse / Hamburger button */}
             <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              onClick={() => isMobile ? setMobileMenuOpen(!mobileMenuOpen) : setSidebarCollapsed(!sidebarCollapsed)}
               style={{
                 background: theme.inputBg, border: `1px solid ${theme.border}`,
                 borderRadius: "8px", padding: "6px 10px",
@@ -273,12 +304,12 @@ useEffect(() => {
             {/* Page Title */}
             <div>
               <h1 style={{
-                fontSize: "1.1rem", fontWeight: "700",
+                fontSize: "clamp(0.95rem, 3vw, 1.1rem)", fontWeight: "700",
                 color: theme.text, margin: 0
               }}>
                 {NAV_ITEMS.find(n => n.id === activePage)?.label}
               </h1>
-              <div style={{ fontSize: "0.75rem", color: theme.subText }}>
+              <div style={{ fontSize: "0.75rem", color: theme.subText, display: isMobile ? "none" : "block" }}>
                 {time.toLocaleString('en-IN', { 
                   weekday: 'short', day: '2-digit', 
                   month: 'short', hour: '2-digit', minute: '2-digit' 
@@ -304,7 +335,7 @@ useEffect(() => {
               <span style={{ animation: refreshing ? "spin 1s linear infinite" : "none", display: "inline-block" }}>
                 ↻
               </span>
-              {!refreshing ? "Refresh" : "..."}
+              {!isMobile && (!refreshing ? "Refresh" : "...")}
             </button>
 
             {/* Dark Mode */}
@@ -313,7 +344,7 @@ useEffect(() => {
               borderRadius: "8px", padding: "8px 12px",
               cursor: "pointer", color: theme.subText, fontSize: "0.85rem"
             }}>
-              {darkMode ? "☀️ Light" : "🌙 Dark"}
+              {darkMode ? (isMobile ? "☀️" : "☀️ Light") : (isMobile ? "🌙" : "🌙 Dark")}
             </button>
 
             {/* Export Excel */}
@@ -344,7 +375,7 @@ useEffect(() => {
       display: "flex", alignItems: "center", gap: "6px"
     }}
   >
-    ↓ Excel
+    ↓{!isMobile && " Excel"}
   </button>
 )}
 
@@ -367,7 +398,7 @@ useEffect(() => {
       fontSize: "0.85rem"
     }}
   >
-    ⏭ Next Day
+    ⏭{!isMobile && " Next Day"}
   </button>
 )}
             {/* Logout */}
@@ -386,7 +417,7 @@ useEffect(() => {
         </div>
 
         {/* ── Page Content ── */}
-        <div style={{ padding: "24px", flex: 1 }} className="fade-in">
+        <div style={{ padding: "clamp(12px, 3vw, 24px)", flex: 1, minWidth: 0 }} className="fade-in">
 
           {activePage === "dashboard" && (
             <>
@@ -426,7 +457,8 @@ useEffect(() => {
                   style={{
                     padding: "8px 16px", borderRadius: "10px",
                     border: `1px solid ${theme.inputBorder}`,
-                    fontSize: "0.9rem", minWidth: "250px",
+                    fontSize: "0.9rem", minWidth: "min(250px, 100%)",
+                    width: isMobile ? "100%" : "auto",
                     background: theme.inputBg, color: theme.text,
                     outline: "none", cursor: "pointer"
                   }}
@@ -460,13 +492,13 @@ useEffect(() => {
             </>
           )}
 
-          {/* {activePage === "reorder" && (
+          {activePage === "reorder" && (
             <ReorderAnalysis theme={theme} user={user} />
           )}
 
           {activePage === "orders" && (
             <OrderHistory theme={theme} user={user} />
-          )} */}
+          )}
           {activePage === "requests" && (
   <div>
     <div style={{ marginBottom: "24px" }}>

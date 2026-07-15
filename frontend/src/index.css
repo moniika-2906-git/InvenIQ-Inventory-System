@@ -26,6 +26,21 @@ code {
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+html {
+  overflow-x: hidden;
+}
+
+/* Responsive baseline */
+@media (max-width: 640px) {
+  body {
+    font-size: 15px;
+  }
+  button, select, input {
+    font-size: 16px; /* prevents iOS Safari auto-zoom on focus */
+  }
 }
 
 @keyframes spin {

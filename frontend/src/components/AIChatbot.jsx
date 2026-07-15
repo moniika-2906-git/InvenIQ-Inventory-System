@@ -1,4 +1,4 @@
- import { api } from '../utils/api';
+import { api } from '../utils/api';
 import { useState, useRef, useEffect } from "react";
 
 function AIChatbot({ theme, inventory, summary }) {
@@ -140,7 +140,8 @@ const data = await res?.json();
       {isOpen && (
         <div style={{
           position: "fixed", bottom: "90px", right: "24px",
-          width: "380px", height: "520px",
+          width: "min(380px, calc(100vw - 48px))",
+          height: "min(520px, calc(100vh - 130px))",
           background: theme.cardBg,
           borderRadius: "20px",
           boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
